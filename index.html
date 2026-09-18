@@ -419,7 +419,7 @@ details.donebox .group{margin-top:8px}
 (function(){
   const $ = id => document.getElementById(id);
   const DAY = 86400000;
-  const VERSION = "2026.09.19c";
+  const VERSION = "2026.09.19d";
   let items = [];          // {id, ...data}
   let cards = [];          // {id, name, last4, memo}
   let editingId = null;
@@ -909,6 +909,16 @@ details.donebox .group{margin-top:8px}
     const d=new Date(y,Number(m[2])-1,Number(m[3]));
     return isNaN(d)?"":iso(d);
   }
+  // 엑셀이 숫자로 바꾸며 지운 앞자리 0 을 되살린다 (1045956282 → 01045956282)
+  function fixPhone(v){
+    const s=String(v??"").trim(); if(!s) return "";
+    if(/^\d+$/.test(s) && (s.length===9 || s.length===10)) return "0"+s;
+    return s;
+  }
+  function fixLast4(v){
+    const d=String(v??"").replace(/\D/g,""); if(!d) return "";
+    return (d.length<4 ? d.padStart(4,"0") : d.slice(-4));
+  }
   function parseMonths(v){
     const s=String(v??"").trim(); if(!s) return 0;
     const y=s.match(/(\d+)\s*년/); if(y) return Number(y[1])*12;
@@ -925,13 +935,13 @@ details.donebox .group{margin-top:8px}
       data:{
         org, product, start, months,
         teacher:String(cellOf(row,"teacher")||"").trim(),
-        phone:String(cellOf(row,"phone")||"").trim(),
+        phone:fixPhone(cellOf(row,"phone")),
         account:String(cellOf(row,"account")||"").trim(),
         memo:String(cellOf(row,"memo")||"").trim(),
         lead:Math.max(0,Number($("impLead").value)||0)
       },
       cardName:String(cellOf(row,"card")||"").trim(),
-      cardLast4:String(cellOf(row,"card4")||"").replace(/\D/g,"").slice(0,4),
+      cardLast4:fixLast4(cellOf(row,"card4")),
       pw:String(cellOf(row,"pw")||"").trim()
     };
   }
@@ -997,6 +1007,8 @@ details.donebox .group{margin-top:8px}
     const sample=["한빛초등학교","박OO 선생님","010-0000-0000","어도비","art@hanbit.es.kr","","신한 체크","1234",iso(today()),3,""];
     const ws=XLSX.utils.aoa_to_sheet([head,sample]);
     ws["!cols"]=head.map(h=>({wch:Math.max(12,h.length*2)}));
+    // 휴대폰(2)·카드 끝4자리(7)는 010, 0035 처럼 0 으로 시작해도 지워지지 않도록 '텍스트' 칸으로 만든다
+    markTextColumns(ws,[2,7],200,head.length);
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"판매건");
     XLSX.writeFile(wb,"카드빼는날_양식.xlsx");
     toast("양식을 내려받았어요. 칸 이름은 그대로 두고 아래에 채워 주세요");
@@ -1109,6 +1121,17 @@ details.donebox .group{margin-top:8px}
     }catch(_){ setSync("bad","백업하지 못했어요 · 폴더를 다시 정해 주세요"); }
   }
 
+  // 앞자리 0 이 살아남도록 해당 칸들을 엑셀 '텍스트' 서식으로 지정한다
+  function markTextColumns(ws,cols,lastRow,colCount){
+    cols.forEach(c=>{
+      for(let r=1;r<=lastRow;r++){
+        const addr=XLSX.utils.encode_cell({r,c});
+        const cur=ws[addr];
+        ws[addr]={t:"s", v:cur&&cur.v!==undefined?String(cur.v):"", z:"@"};
+      }
+    });
+    ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:lastRow,c:colCount-1}});
+  }
   const SHEET_HEAD=["학교·기관","담당 선생님","휴대폰","제품","계정","카드 별명","카드 끝4자리","결제한 날","개월","알림(며칠 전)","다음 자동결제일","카드 빼는 날","상태","메모"];
   function sheetBook(){
     const rows=items.map(it=>{ const c=calcOf(it);
@@ -1116,6 +1139,7 @@ details.donebox .group{margin-top:8px}
     }).sort((a,b)=>String(a[11]).localeCompare(String(b[11])));
     const ws=XLSX.utils.aoa_to_sheet([SHEET_HEAD,...rows]);
     ws["!cols"]=SHEET_HEAD.map(h=>({wch:Math.max(12,h.length*2)}));
+    markTextColumns(ws,[2,6],Math.max(rows.length,1),SHEET_HEAD.length);
     ws["!freeze"]={xSplit:0,ySplit:1};
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"카드빼는날");
     return wb;
