@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="구독 결제에 걸어 둔 카드를 자동결제 전에 빼도록 챙기는 관리 화면">
+<title>카드 빼는 날</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --ground:#F2F4F6; --surface:#FFFFFF; --sunk:#E8ECEF; --line:#D5DBE0;
+  --ink:#16202A; --ink-2:#4A5763; --ink-3:#7A8691;
+  --accent:#1D5C86; --accent-ink:#FFFFFF; --accent-soft:#DCE9F2;
+  --red:#B8372A; --red-soft:#F7E1DE; --amber:#9A6412; --amber-soft:#F6EBD5;
+  --green:#2F7250; --green-soft:#DDEEE4;
+  --sans:"IBM Plex Sans KR",-apple-system,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101419; --surface:#181E25; --sunk:#0C1014; --line:#2A333C;
+    --ink:#E4E9ED; --ink-2:#A9B4BE; --ink-3:#77828C;
+    --accent:#6FAEDB; --accent-ink:#0C1620; --accent-soft:#1C3345;
+    --red:#EE8173; --red-soft:#3A1E1B; --amber:#E0B060; --amber-soft:#342817;
+    --green:#79C79B; --green-soft:#17301F;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101419; --surface:#181E25; --sunk:#0C1014; --line:#2A333C;
+  --ink:#E4E9ED; --ink-2:#A9B4BE; --ink-3:#77828C;
+  --accent:#6FAEDB; --accent-ink:#0C1620; --accent-soft:#1C3345;
+  --red:#EE8173; --red-soft:#3A1E1B; --amber:#E0B060; --amber-soft:#342817;
+  --green:#79C79B; --green-soft:#17301F;
+}
+*{box-sizing:border-box}
+html{color-scheme:light dark}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%} [hidden]{display:none!important}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;padding-inline:20px;padding-block:24px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{margin:0;text-wrap:balance}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+.top h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+.top p{margin:4px 0 0;color:var(--ink-2)}
+.today{color:var(--ink-3);font-size:13px}
+.sync{font-size:12px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--ink-3);display:inline-block}
+.sync.ok i{background:var(--green)} .sync.bad i{background:var(--red)}
+
+/* summary strip */
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.strip div{padding:14px 18px;border-right:1px solid var(--line)}
+.strip div:last-child{border-right:0}
+.strip b{display:block;font-family:var(--mono);font-size:28px;font-weight:600;line-height:1.1}
+.strip span{font-size:13px;color:var(--ink-2)}
+.strip .hot b{color:var(--red)} .strip .warm b{color:var(--amber)}
+
+.backupbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.layout{display:grid;grid-template-columns:350px minmax(0,1fr);gap:22px;align-items:start}
+footer.ver{text-align:center;color:var(--ink-3);font-size:12px;padding-top:6px}
+
+/* form */
+.form{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
+.form h2{font-size:17px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:600;color:var(--ink-2);letter-spacing:.02em}
+.field input,.field textarea{background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+.field textarea{resize:vertical;min-height:54px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.months button{border:1px solid var(--line);background:var(--ground);border-radius:6px;padding:6px 10px;cursor:pointer}
+.months button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.months input{width:70px}
+.calc{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px}
+.calc dt{color:var(--ink-2)} .calc dd{margin:0;font-family:var(--mono);font-weight:600}
+.actions{display:flex;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:9px 14px;cursor:pointer;font-weight:500;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);flex:1}
+.btn.primary:hover{filter:brightness(1.07);background:var(--accent)}
+.btn.sm{padding:5px 9px;font-size:13px;border-radius:6px}
+.note{font-size:12px;color:var(--ink-3);margin:0}
+
+/* list */
+.listcol{display:flex;flex-direction:column;gap:18px;min-width:0}
+.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tools input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:9px 12px}
+.group{display:flex;flex-direction:column;gap:8px}
+.group h3{font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.03em;display:flex;gap:8px;align-items:baseline}
+.group h3 .num{color:var(--ink-3);font-weight:500}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:10px;display:grid;grid-template-columns:96px minmax(0,1fr);overflow:hidden}
+.dday{padding:14px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;border-right:1px solid var(--line);background:var(--sunk)}
+.dday b{font-family:var(--mono);font-size:22px;font-weight:600;line-height:1}
+.dday small{font-size:11px;color:var(--ink-2)}
+.item.hot .dday{background:var(--red-soft)} .item.hot .dday b{color:var(--red)}
+.item.warm .dday{background:var(--amber-soft)} .item.warm .dday b{color:var(--amber)}
+.item.done{opacity:.72} .item.done .dday{background:var(--green-soft)} .item.done .dday b{color:var(--green);font-size:15px}
+.body{padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.line1{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.line1 strong{font-size:16px}
+.line1 .prod{color:var(--accent);font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--ink-2)}
+.meta span{overflow-wrap:anywhere}
+.dates{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px}
+.dates em{font-style:normal;color:var(--ink-3);margin-right:4px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:5px;padding:1px 8px;font-size:12px;background:var(--ground);white-space:nowrap}
+.chip .num{letter-spacing:.06em}
+.memo{font-size:13px;color:var(--ink-2);background:var(--ground);border-radius:6px;padding:6px 9px;white-space:pre-wrap}
+.ops{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ops .spacer{flex:1}
+.cal-ok{font-size:12px;color:var(--green)}
+.linkbtn{background:none;border:0;padding:4px 6px;color:var(--ink-3);cursor:pointer;font-size:13px}
+.linkbtn:hover{color:var(--ink)}
+.linkbtn.danger:hover{color:var(--red)}
+.example-note{font-size:13px;color:var(--ink-2);background:var(--accent-soft);border-radius:8px;padding:10px 12px}
+.item.example{border-style:dashed}
+details.donebox summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:4px 0}
+details.donebox .group{margin-top:8px}
+
+/* cards summary */
+.cards{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.cards h3{font-size:13px;color:var(--ink-2);font-weight:600}
+.cardrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;font-size:14px;padding:4px 0;border-top:1px solid var(--line)}
+.cardrow:first-of-type{border-top:0}
+.cardrow small{color:var(--ink-3)}
+.who{background:none;border:0;padding:0;color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;font-size:13px;font-weight:600}
+.who:hover{text-decoration-color:var(--accent);color:var(--accent)}
+.sheet-back{position:fixed;inset:0;background:rgba(10,16,22,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
+.sheet{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;width:100%;max-width:420px;padding:20px;display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow:auto}
+.sheet h2{font-size:18px}
+.sheet .sub{color:var(--ink-2);font-size:13px;margin-top:2px}
+.kv{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.kv div{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.kv dt{font-size:12px;color:var(--ink-2);font-weight:600}
+.kv dd{margin:0;overflow-wrap:anywhere;font-family:var(--mono);font-size:14px}
+.kv dd.empty{color:var(--ink-3);font-family:var(--sans)}
+.kv .btns{display:flex;gap:4px}
+.field select,.row-card select{background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+.mgr{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.mgr .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.mgr .row b{font-weight:600}
+.mgr .row small{color:var(--ink-3);display:block}
+.mgr .row .num{letter-spacing:.06em}
+.addcard{display:flex;flex-direction:column;gap:8px;background:var(--ground);border-radius:8px;padding:12px}
+.addcard input{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+.filerow{display:flex;gap:8px;flex-wrap:wrap}
+.filerow .btn{flex:1}
+.mapgrid{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px 10px;align-items:center;font-size:13px}
+.mapgrid label{color:var(--ink-2);font-weight:600}
+.mapgrid select{background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%;min-width:0}
+.mapgrid .req{color:var(--red)}
+.preview{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.preview table{border-collapse:collapse;font-size:12px;white-space:nowrap;min-width:100%}
+.preview th,.preview td{padding:6px 9px;border-bottom:1px solid var(--line);text-align:left}
+.preview th{color:var(--ink-2);font-weight:600;background:var(--sunk)}
+.pinrow{display:flex;gap:8px}
+.pinrow input{flex:1;min-width:0;background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-family:var(--mono);letter-spacing:.2em}
+.err{color:var(--red);font-size:13px;margin:0}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:9px 16px;border-radius:8px;font-size:14px;z-index:10}
+.fab{display:none}
+
+@media (max-width:880px){
+  .layout{grid-template-columns:1fr}
+  .form{position:static;order:2}
+  .listcol{order:1}
+  .fab{display:inline-flex}
+}
+@media (max-width:460px){
+  .item{grid-template-columns:74px minmax(0,1fr)}
+  .dday b{font-size:18px}
+  .strip div{padding:10px 14px}
+  .strip b{font-size:22px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>카드 빼는 날</h1>
+      <p>학교장터 판매 건마다 걸어 둔 카드를, 다음 자동결제 전에 빼도록 챙겨요.</p>
+    </div>
+    <span class="today num" id="todayLabel"></span>
+  </header>
+
+  <section class="backupbar">
+    <span class="sync" id="sync"><i></i><span>이 PC에 저장돼요</span></span>
+    <span style="flex:1"></span>
+    <button class="btn sm" type="button" id="btnBackupDir">자동 백업 폴더 정하기</button>
+    <button class="btn sm" type="button" id="btnExport">엑셀로 내보내기</button>
+    <button class="btn sm" type="button" id="btnRestore">백업에서 되살리기</button>
+    <input id="restoreFile" type="file" accept=".json,.xlsx" style="position:absolute;width:1px;height:1px;opacity:0">
+  </section>
+
+  <section class="strip" aria-label="요약">
+    <div class="hot"><b id="sNow">0</b><span>지금 카드 빼야 함</span></div>
+    <div class="warm"><b id="sSoon">0</b><span>2주 안에 뺄 것</span></div>
+    <div><b id="sActive">0</b><span>카드 걸려 있는 구독</span></div>
+    <div><b id="sCal">0</b><span>캘린더 알림 안 넣은 건</span></div>
+  </section>
+
+  <div class="layout">
+    <form class="form" id="form" autocomplete="off">
+      <h2 id="formTitle">새 판매 건 등록</h2>
+      <div class="field">
+        <label for="org">학교·기관</label>
+        <input id="org" required placeholder="예) 한빛초등학교">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="teacher">담당 선생님</label>
+          <input id="teacher" placeholder="예) 김OO 선생님">
+        </div>
+        <div class="field">
+          <label for="product">제품</label>
+          <input id="product" list="productList" required placeholder="고르거나 직접 입력">
+        </div>
+      </div>
+      <div class="field">
+        <label for="phone">선생님 휴대폰</label>
+        <input id="phone" type="tel" inputmode="tel" placeholder="010-0000-0000" class="num">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="account">계정 (아이디)</label>
+          <input id="account" type="text" inputmode="email" placeholder="teacher@school.kr">
+        </div>
+        <div class="field">
+          <label for="pw">비밀번호 <span style="font-weight:400;color:var(--ink-3)">· PIN으로 잠금</span></label>
+          <input id="pw" type="password" autocomplete="new-password" placeholder="">
+        </div>
+      </div>
+      <div class="field">
+        <label for="cardSel">결제 카드</label>
+        <div class="row-card">
+          <select id="cardSel"></select>
+          <button class="btn" type="button" id="manageCards">카드 관리</button>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="start">결제한 날</label>
+          <input id="start" type="date" required>
+        </div>
+        <div class="field">
+          <label for="lead">며칠 전에 알림</label>
+          <input id="lead" type="number" min="0" max="30" value="3" class="num">
+        </div>
+      </div>
+      <div class="field">
+        <label for="months">구매 기간 (개월)</label>
+        <div class="months" id="monthBtns">
+          <button type="button" data-m="1">1개월</button>
+          <button type="button" data-m="3">3개월</button>
+          <button type="button" data-m="6">6개월</button>
+          <button type="button" data-m="12">12개월</button>
+          <input id="months" type="number" min="1" max="60" value="3" class="num" aria-label="개월 수 직접 입력" style="background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:6px 8px">
+        </div>
+      </div>
+      <dl class="calc" id="calc">
+        <dt>다음 자동결제일</dt><dd id="cRenew">—</dd>
+        <dt>카드 빼는 날 (알림)</dt><dd id="cAlert">—</dd>
+      </dl>
+      <div class="field">
+        <label for="memo">메모</label>
+        <textarea id="memo" placeholder="예) 품의번호, 연장 의사 등"></textarea>
+      </div>
+      <div class="actions">
+        <button class="btn primary" type="submit" id="submitBtn">등록</button>
+        <button class="btn" type="button" id="cancelEdit" hidden>취소</button>
+      </div>
+      <p class="note">카드번호 전체는 적지 마세요. 별명과 끝 4자리면 충분해요.</p>
+    </form>
+
+    <div class="listcol">
+      <div class="tools">
+        <input id="q" type="search" placeholder="학교, 선생님, 제품, 카드로 찾기">
+        <button class="btn" type="button" id="openImport">엑셀로 한번에 올리기</button>
+        <a class="btn fab" href="#form">+ 새 건</a>
+      </div>
+      <div id="list"></div>
+      <section class="cards" id="cardsBox" hidden>
+        <h3>카드별로 걸려 있는 구독</h3>
+        <div id="cardsList"></div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="ver">카드 빼는 날 <span class="num" id="verLabel"></span> · 적은 내용은 이 PC에만 저장돼요</footer>
+</div>
+
+<datalist id="productList">
+  <option value="노션"></option>
+  <option value="챗지피티"></option>
+  <option value="클로드"></option>
+  <option value="어도비"></option>
+  <option value="제미나이"></option>
+  <option value="캔바"></option>
+  <option value="패들렛"></option>
+  <option value="노션"></option>
+  <option value="퍼플렉시티"></option>
+  <option value="미드저니"></option>
+  <option value="감마"></option>
+  <option value="뤼튼"></option>
+  <option value="일레븐랩스"></option>
+  <option value="코파일럿"></option>
+</datalist>
+<div class="sheet-back" id="detailBack" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div>
+      <h2 id="dTitle"></h2>
+      <div class="sub" id="dSub"></div>
+    </div>
+    <dl class="kv">
+      <div><dt>휴대폰</dt><dd id="dPhone"></dd><span class="btns" id="dPhoneBtns"></span></div>
+      <div><dt>계정</dt><dd id="dAccount"></dd><span class="btns"><button class="btn sm" type="button" data-copy="dAccount">복사</button></span></div>
+      <div><dt>비밀번호</dt><dd id="dPw"></dd><span class="btns" id="dPwBtns"></span></div>
+      <div><dt>결제 카드</dt><dd id="dCard"></dd><span></span></div>
+    </dl>
+    <div class="actions"><button class="btn" type="button" id="dClose" style="flex:1">닫기</button></div>
+  </div>
+</div>
+
+<div class="sheet-back" id="pinBack" hidden>
+  <form class="sheet" id="pinForm" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
+    <div>
+      <h2 id="pinTitle">PIN 입력</h2>
+      <div class="sub" id="pinSub"></div>
+    </div>
+    <div class="pinrow"><input id="pinInput" type="password" inputmode="numeric" autocomplete="off" minlength="4" required placeholder="••••"></div>
+    <div class="pinrow" id="pin2Row" hidden><input id="pin2Input" type="password" inputmode="numeric" autocomplete="off" placeholder="한 번 더"></div>
+    <p class="err" id="pinErr" hidden></p>
+    <div class="actions">
+      <button class="btn primary" type="submit">확인</button>
+      <button class="btn" type="button" id="pinCancel">취소</button>
+    </div>
+    <p class="note" id="pinResetWrap">PIN을 잊었다면 <button class="linkbtn danger" type="button" id="pinReset" style="padding:0">PIN 초기화</button> — 저장된 비밀번호가 모두 지워져요.</p>
+  </form>
+</div>
+
+<div class="sheet-back" id="cardBack" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+    <div>
+      <h2 id="cardTitle">카드 관리</h2>
+      <div class="sub">한 번 등록해 두면 판매 건마다 목록에서 고르기만 하면 돼요.</div>
+    </div>
+    <dl class="mgr" id="cardMgrList"></dl>
+    <form class="addcard" id="cardAddForm">
+      <div class="row-card" style="grid-template-columns:minmax(0,1fr) 92px">
+        <input id="ncName" placeholder="별명 예) 신한 체크" required>
+        <input id="ncLast4" class="num" inputmode="numeric" maxlength="4" placeholder="끝 4자리">
+      </div>
+      <input id="ncMemo" placeholder="메모 (예: 개인 / 법인)">
+      <div class="actions">
+        <button class="btn primary" type="submit" id="ncSubmit">카드 추가</button>
+        <button class="btn" type="button" id="ncCancel" hidden>취소</button>
+      </div>
+    </form>
+    <div class="actions"><button class="btn" type="button" id="cardClose" style="flex:1">닫기</button></div>
+  </div>
+</div>
+
+<div class="sheet-back" id="impBack" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="impTitle" style="max-width:580px">
+    <div>
+      <h2 id="impTitle">엑셀로 한번에 올리기</h2>
+      <div class="sub">엑셀(.xlsx)이나 CSV 파일을 고르면 칸을 맞춰 한 번에 등록해요. 이미 있는 건(학교·제품·결제일이 같은 건)은 건너뛰어요.</div>
+    </div>
+    <div class="filerow">
+      <label class="btn primary" for="impFile">파일 고르기</label>
+      <button class="btn" type="button" id="tplBtn">양식 내려받기</button>
+    </div>
+    <input id="impFile" type="file" accept=".xlsx,.xls,.csv" style="position:absolute;width:1px;height:1px;opacity:0">
+    <p class="err" id="impErr" hidden></p>
+    <div id="impStep2" hidden style="display:flex;flex-direction:column;gap:14px">
+      <div class="sub" id="impFileInfo"></div>
+      <div class="field" id="impSheetWrap" hidden>
+        <label for="impSheet">엑셀 시트</label>
+        <select id="impSheet"></select>
+      </div>
+      <div class="mapgrid" id="impMap"></div>
+      <div class="row2">
+        <div class="field">
+          <label for="impCard">카드 칸이 없을 때 쓸 카드</label>
+          <select id="impCard"></select>
+        </div>
+        <div class="field">
+          <label for="impLead">며칠 전에 알림</label>
+          <input id="impLead" type="number" min="0" max="30" value="3" class="num" style="background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:8px 10px">
+        </div>
+      </div>
+      <div class="preview" id="impPreview"></div>
+      <p class="note" id="impSummary"></p>
+      <div class="actions">
+        <button class="btn primary" type="button" id="impRun">등록하기</button>
+        <button class="btn" type="button" id="impBack2">파일 다시 고르기</button>
+      </div>
+    </div>
+    <div class="actions"><button class="btn" type="button" id="impClose" style="flex:1">닫기</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const DAY = 86400000;
+  const VERSION = "2026.09.19";
+  let items = [];          // {id, ...data}
+  let cards = [];          // {id, name, last4, memo}
+  let editingId = null;
+  let fallback = true;   // 이 앱은 언제나 이 PC(브라우저)에 저장한다
+
+  const EXAMPLES = [
+    {id:"ex1", org:"한빛초등학교", teacher:"박OO 선생님", phone:"010-0000-0000", product:"어도비", account:"art@hanbit.es.kr", card:"신한 체크", card4:"1234", start:shift(-88), months:3, lead:3, memo:"", done:false, calAdded:true},
+    {id:"ex2", org:"푸른중학교", teacher:"이OO 선생님", product:"챗지피티", account:"info@pureun.ms.kr", card:"국민 신용", card4:"5678", start:shift(-20), months:1, lead:3, memo:"연장 문의 예정", done:false, calAdded:false},
+    {id:"ex3", org:"OO교육지원청", teacher:"최OO 주무관", product:"노션", account:"edu@office.go.kr", card:"신한 체크", card4:"1234", start:shift(-30), months:12, lead:7, memo:"", done:false, calAdded:true},
+  ];
+
+  function shift(n){ return iso(new Date(today().getTime()+n*DAY)); }
+  function today(){ const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+  function parse(s){ if(!s) return null; const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+  function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function fmt(d){ const w="일월화수목금토"[d.getDay()]; return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" ("+w+")"; }
+  function addMonths(d,n){
+    const y=d.getFullYear(), m=d.getMonth()+n, day=d.getDate();
+    const last=new Date(y,m+1,0).getDate();
+    return new Date(y,m,Math.min(day,last));
+  }
+  function diff(a,b){ return Math.round((a-b)/DAY); }
+  function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function calcOf(it){
+    const start=parse(it.start); if(!start) return null;
+    const months=Math.max(1,Number(it.months)||1), lead=Math.max(0,Number(it.lead)||0);
+    const renew=addMonths(start,months);
+    const alert=new Date(renew.getTime()-lead*DAY);
+    const t=today();
+    const toAlert=diff(alert,t), toRenew=diff(renew,t);
+    let tier="later";
+    if(it.done) tier="done";
+    else if(toAlert<=0) tier="now";
+    else if(toAlert<=14) tier="soon";
+    return {renew,alert,toAlert,toRenew,tier,months,lead};
+  }
+  function cardOf(it){ return it.cardId ? cards.find(c=>c.id===it.cardId)||null : null; }
+  function cardName(it){ const c=cardOf(it); return (c?c.name:it.card)||"카드 미지정"; }
+  function cardLast4(it){ const c=cardOf(it); return (c?c.last4:it.card4)||""; }
+  function cardLabel(it){ const l4=cardLast4(it); return cardName(it)+(l4?" ·"+l4:""); }
+
+  function calUrl(it,c){
+    const d=iso(c.alert).replace(/-/g,"");
+    const title="[카드 빼기] "+it.org+" · "+it.product+" · "+cardLabel(it);
+    const details=[
+      "다음 자동결제일: "+fmt(c.renew),
+      "기관: "+it.org+(it.teacher?" / "+it.teacher:""),
+      "제품: "+it.product+" ("+c.months+"개월)",
+      it.account?"계정: "+it.account:"",
+      "결제 카드: "+cardLabel(it),
+      it.memo?"메모: "+it.memo:""
+    ].filter(Boolean).join("\n");
+    const p=new URLSearchParams({action:"TEMPLATE",text:title,dates:d+"T090000/"+d+"T093000",ctz:"Asia/Seoul",details});
+    return "https://calendar.google.com/calendar/render?"+p.toString();
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    const t=today();
+    $("todayLabel").textContent="오늘 "+fmt(t);
+    const showingExamples = items.length===0;
+    const source = showingExamples ? EXAMPLES : items;
+    const q=$("q").value.trim().toLowerCase();
+    const rows = source.map(it=>({it,c:calcOf(it)})).filter(r=>r.c)
+      .filter(r=>!q || [r.it.org,r.it.teacher,r.it.product,r.it.account,r.it.card,r.it.card4,r.it.memo].join(" ").toLowerCase().includes(q))
+      .sort((a,b)=>a.c.alert-b.c.alert);
+
+    const real = items.map(it=>({it,c:calcOf(it)})).filter(r=>r.c);
+    $("sNow").textContent = real.filter(r=>r.c.tier==="now").length;
+    $("sSoon").textContent = real.filter(r=>r.c.tier==="soon").length;
+    $("sActive").textContent = real.filter(r=>!r.it.done).length;
+    $("sCal").textContent = real.filter(r=>!r.it.done && !r.it.calAdded).length;
+
+    const groups=[["now","지금 카드 빼야 함"],["soon","2주 안에"],["later","나중에"]];
+    let html="";
+    if(showingExamples){
+      html+='<p class="example-note">아래는 <b>예시</b>예요. 왼쪽에서 첫 건을 등록하면 예시는 사라지고 내 목록만 남아요.</p>';
+    }
+    for(const [key,label] of groups){
+      const g=rows.filter(r=>r.c.tier===key);
+      if(!g.length) continue;
+      html+=`<section class="group"><h3>${label} <span class="num">${g.length}</span></h3>${g.map(r=>itemHtml(r,showingExamples)).join("")}</section>`;
+    }
+    const done=rows.filter(r=>r.c.tier==="done").sort((a,b)=>b.c.renew-a.c.renew);
+    if(done.length){
+      html+=`<details class="donebox"><summary>정리 완료 ${done.length}건</summary><section class="group">${done.map(r=>itemHtml(r,showingExamples)).join("")}</section></details>`;
+    }
+    if(!rows.length && !showingExamples) html+='<p class="note">찾는 건이 없어요.</p>';
+    $("list").innerHTML=html;
+
+    // cards summary
+    const byCard={};
+    real.filter(r=>!r.it.done).forEach(r=>{
+      const k=cardLabel(r.it);
+      (byCard[k] ||= {n:0,next:null}).n++;
+      if(!byCard[k].next || r.c.alert<byCard[k].next) byCard[k].next=r.c.alert;
+    });
+    const keys=Object.keys(byCard).sort((a,b)=>byCard[a].next-byCard[b].next);
+    $("cardsBox").hidden=!keys.length;
+    $("cardsList").innerHTML=keys.map(k=>`<div class="cardrow"><span class="chip">${esc(k)}</span><span class="num">${byCard[k].n}건</span><small class="num">가장 빠른 날 ${fmt(byCard[k].next)}</small></div>`).join("");
+
+  }
+
+  /* ---------- 카드 목록 ---------- */
+  function cardOptionLabel(c){ return c.name+(c.last4?" ·"+c.last4:"")+(c.memo?" ("+c.memo+")":""); }
+  function renderCardOptions(selectedId,legacyItem){
+    const sel=$("cardSel"), keep=selectedId||sel.value;
+    let html=cards.map(c=>`<option value="${esc(c.id)}">${esc(cardOptionLabel(c))}</option>`).join("");
+    if(legacyItem && !cardOf(legacyItem) && (legacyItem.card||legacyItem.card4)){
+      html=`<option value="__legacy">${esc(cardLabel(legacyItem))} (예전 입력)</option>`+html;
+    }
+    sel.innerHTML = (cards.length||legacyItem?"":`<option value="">먼저 카드를 등록해 주세요</option>`)+html;
+    if(keep && [...sel.options].some(o=>o.value===keep)) sel.value=keep;
+    const imp=$("impCard");
+    imp.innerHTML=cards.map(c=>`<option value="${esc(c.id)}">${esc(cardOptionLabel(c))}</option>`).join("")||`<option value="">등록된 카드 없음</option>`;
+  }
+  function renderCardMgr(){
+    const used={};
+    items.forEach(it=>{ if(it.cardId) used[it.cardId]=(used[it.cardId]||0)+1; });
+    $("cardMgrList").innerHTML = cards.length ? cards.map(c=>`<div class="row" data-card="${esc(c.id)}">
+      <div><b>${esc(c.name)}</b>${c.last4?` <span class="num">·${esc(c.last4)}</span>`:""}<small>${esc(c.memo||"")}${used[c.id]?(c.memo?" · ":"")+used[c.id]+"건 등록됨":""}</small></div>
+      <span class="btns"><button class="linkbtn" type="button" data-cact="edit">수정</button><button class="linkbtn danger" type="button" data-cact="del">삭제</button></span>
+    </div>`).join("") : '<p class="note" style="padding:8px 0">등록된 카드가 없어요. 아래에서 추가해 주세요.</p>';
+  }
+
+  function itemHtml({it,c},isEx){
+    const tierCls={now:"hot",soon:"warm",later:"",done:"done"}[c.tier];
+    let big, small;
+    if(c.tier==="done"){ big="완료"; small="카드 정리함"; }
+    else if(c.toRenew<0){ big="D+"+(-c.toRenew); small="결제일 지남"; }
+    else if(c.toAlert<=0){ big=c.toRenew===0?"D-DAY":"D-"+c.toRenew; small="결제일까지"; }
+    else { big="D-"+c.toAlert; small="카드 빼는 날까지"; }
+    const dis=isEx?" disabled":"";
+    return `<article class="item ${tierCls}${isEx?" example":""}" data-id="${esc(it.id)}">
+      <div class="dday"><b>${big}</b><small>${small}</small></div>
+      <div class="body">
+        <div class="line1"><strong>${esc(it.org)}</strong><span class="prod">${esc(it.product)}</span><span class="chip">${esc(cardName(it))}${cardLast4(it)?` <span class="num">${esc(cardLast4(it))}</span>`:""}</span></div>
+        <div class="meta"><button class="who" type="button" data-act="detail">${esc(it.teacher||"담당자 정보")}</button>${it.account?`<span>${esc(it.account)}</span>`:""}<span>${c.months}개월 구매</span></div>
+        <div class="dates num"><span><em>결제한 날</em>${fmt(parse(it.start))}</span><span><em>카드 빼는 날</em>${fmt(c.alert)}</span><span><em>자동결제일</em>${fmt(c.renew)}</span></div>
+        ${it.memo?`<div class="memo">${esc(it.memo)}</div>`:""}
+        <div class="ops">
+          ${c.tier!=="done"?`<a class="btn sm" href="${esc(calUrl(it,c))}" target="_blank" rel="noopener" data-act="cal"${isEx?' aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:.6"':""}>구글 캘린더에 추가</a>`:""}
+          ${it.calAdded&&c.tier!=="done"?'<span class="cal-ok">✓ 캘린더에 넣음</span>':""}
+          <span class="spacer"></span>
+          <button class="btn sm" type="button" data-act="done"${dis}>${it.done?"다시 진행 중으로":"카드 뺐어요"}</button>
+          <button class="linkbtn" type="button" data-act="edit"${dis}>수정</button>
+          <button class="linkbtn danger" type="button" data-act="del"${dis}>삭제</button>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  /* ---------- form ---------- */
+  function readForm(){
+    return {
+      org:$("org").value.trim(), teacher:$("teacher").value.trim(), phone:$("phone").value.trim(), product:$("product").value.trim(),
+      account:$("account").value.trim(), ...cardFields($("cardSel").value),
+      start:$("start").value, months:Number($("months").value)||1, lead:Number($("lead").value)||0,
+      memo:$("memo").value.trim()
+    };
+  }
+  function cardFields(id){
+    if(id==="__legacy"||!id){ const prev=items.find(i=>i.id===editingId); return prev?{cardId:prev.cardId||null,card:prev.card||"",card4:prev.card4||""}:{cardId:null,card:"",card4:""}; }
+    const c=cards.find(x=>x.id===id);
+    return c?{cardId:c.id,card:c.name,card4:c.last4||""}:{cardId:null,card:"",card4:""};
+  }
+  function fillForm(it){
+    ["org","teacher","phone","product","account","start","months","lead","memo"].forEach(k=>{ $(k).value = it[k] ?? ""; });
+    renderCardOptions(it.cardId||"__legacy",it);
+    $("pw").value=""; $("pw").placeholder = it.pwEnc ? "바꿀 때만 입력" : "";
+    syncMonthBtns(); updateCalc();
+  }
+  function resetForm(){
+    editingId=null;
+    $("form").reset();
+    $("start").value=iso(today()); $("months").value=3; $("lead").value=3; $("pw").placeholder="";
+    renderCardOptions();
+    $("formTitle").textContent="새 판매 건 등록"; $("submitBtn").textContent="등록"; $("cancelEdit").hidden=true;
+    syncMonthBtns(); updateCalc();
+  }
+  function syncMonthBtns(){
+    const m=String($("months").value);
+    document.querySelectorAll("#monthBtns button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.m===m?"true":"false"));
+  }
+  function updateCalc(){
+    const c=calcOf(readForm());
+    $("cRenew").textContent = c?fmt(c.renew):"—";
+    $("cAlert").textContent = c?fmt(c.alert)+" 오전 9시":"—";
+  }
+  $("monthBtns").addEventListener("click",e=>{
+    const b=e.target.closest("button[data-m]"); if(!b) return;
+    $("months").value=b.dataset.m; syncMonthBtns(); updateCalc();
+  });
+  ["start","months","lead"].forEach(id=>$(id).addEventListener("input",()=>{syncMonthBtns();updateCalc();}));
+  $("cancelEdit").addEventListener("click",resetForm);
+  $("q").addEventListener("input",render);
+
+  $("form").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const data=readForm();
+    if(!data.card && !data.cardId){ toast("먼저 「카드 관리」에서 카드를 등록해 주세요"); openCardMgr(); return; }
+    const pw=$("pw").value;
+    if(pw){
+      let key; try{ key=await ensureKey("비밀번호를 잠글 PIN을 넣어 주세요"); }catch(_){ toast("PIN을 넣지 않아 저장하지 않았어요"); return; }
+      data.pwEnc=await encrypt(key,pw);
+    }
+    const now=new Date().toISOString();
+    if(editingId){
+      const prev=items.find(i=>i.id===editingId)||{};
+      const dateChanged = prev.start!==data.start || Number(prev.months)!==data.months || Number(prev.lead)!==data.lead;
+      const full={...stripId(prev),...data,updatedAt:now, calAdded: dateChanged?false:!!prev.calAdded};
+      await save(editingId,full);
+      toast(dateChanged&&prev.calAdded?"수정했어요. 날짜가 바뀌어서 캘린더에 다시 넣어 주세요":"수정했어요");
+    }else{
+      await save(newId("s"),{...data,done:false,calAdded:false,createdAt:now});
+      toast("등록했어요. ‘구글 캘린더에 추가’를 눌러 알림을 넣어 주세요");
+    }
+    resetForm();
+  });
+  function stripId(o){ const {id,...rest}=o; return rest; }
+
+  $("list").addEventListener("click",async e=>{
+    const el=e.target.closest("[data-act]"); if(!el) return;
+    const art=el.closest(".item"); const id=art?.dataset.id;
+    const act=el.dataset.act;
+    const it=items.find(i=>i.id===id) || (act==="detail"?EXAMPLES.find(i=>i.id===id):null); if(!it) return;
+    const wasDone=!!it.done;
+    if(act==="detail"){
+      openDetail(it);
+    }else if(act==="cal"){
+      if(!it.calAdded) await patch(id,{calAdded:true});
+    }else if(act==="done"){
+      await patch(id,{done:!wasDone,doneAt:wasDone?null:new Date().toISOString()});
+      toast(wasDone?"진행 중으로 돌렸어요":"카드 정리 완료로 옮겼어요");
+    }else if(act==="edit"){
+      editingId=id; fillForm(it);
+      $("formTitle").textContent="판매 건 수정"; $("submitBtn").textContent="수정 저장"; $("cancelEdit").hidden=false;
+      $("form").scrollIntoView({behavior:"smooth",block:"start"}); $("org").focus({preventScroll:true});
+    }else if(act==="del"){
+      if(art.dataset.confirm!=="1"){ art.dataset.confirm="1"; el.textContent="정말 삭제"; setTimeout(()=>{ if(art.isConnected){art.dataset.confirm=""; el.textContent="삭제";} },3000); return; }
+      await remove(id); toast("삭제했어요");
+    }
+  });
+
+  /* ---------- 비밀번호 잠금 (PIN → AES-GCM) ---------- */
+  let cryptoKey=null;
+  const te=new TextEncoder(), td=new TextDecoder();
+  const b64=buf=>btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  async function deriveKey(pin,saltB64){
+    const base=await crypto.subtle.importKey("raw",te.encode(pin),"PBKDF2",false,["deriveKey"]);
+    return crypto.subtle.deriveKey({name:"PBKDF2",salt:unb64(saltB64),iterations:250000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  }
+  async function encrypt(key,text){
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,te.encode(text));
+    return {iv:b64(iv),ct:b64(ct)};
+  }
+  async function decrypt(key,box){
+    const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(box.iv)},key,unb64(box.ct));
+    return td.decode(pt);
+  }
+  async function getLock(){
+    if(fallback){ try{ return JSON.parse(localStorage.getItem("cardOffDay.lock")||"null"); }catch(_){ return null; } }
+    const s=await db.doc("meta/lock").get(); return s.exists?s.data():null;
+  }
+  async function setLock(v){
+    if(fallback){ try{ v?localStorage.setItem("cardOffDay.lock",JSON.stringify(v)):localStorage.removeItem("cardOffDay.lock"); }catch(_){} return; }
+    v ? await db.doc("meta/lock").set(v) : await db.doc("meta/lock").delete();
+  }
+
+  let pinResolve=null, pinReject=null, pinLock=null;
+  async function ensureKey(reason){
+    if(cryptoKey) return cryptoKey;
+    pinLock=await getLock();
+    const first=!pinLock;
+    $("pinTitle").textContent = first ? "PIN 만들기" : "PIN 입력";
+    $("pinSub").textContent = first ? "비밀번호를 잠글 PIN을 정해 주세요 (4자리 이상). 폰·PC에서 같은 PIN을 써요. 잊으면 되찾을 수 없어요." : reason;
+    $("pin2Row").hidden=!first; $("pinResetWrap").hidden=first;
+    $("pinInput").value=""; $("pin2Input").value=""; $("pinErr").hidden=true;
+    $("pinBack").hidden=false; $("pinInput").focus();
+    return new Promise((res,rej)=>{ pinResolve=res; pinReject=rej; });
+  }
+  function closePin(){ $("pinBack").hidden=true; }
+  $("pinForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const pin=$("pinInput").value;
+    const showErr=m=>{ $("pinErr").textContent=m; $("pinErr").hidden=false; };
+    if(pin.length<4) return showErr("4자리 이상 넣어 주세요");
+    try{
+      if(!pinLock){
+        if(pin!==$("pin2Input").value) return showErr("두 번 넣은 PIN이 달라요");
+        const salt=b64(crypto.getRandomValues(new Uint8Array(16)));
+        const key=await deriveKey(pin,salt);
+        const check=await encrypt(key,"card-off-day");
+        await setLock({salt,check});
+        cryptoKey=key;
+      }else{
+        const key=await deriveKey(pin,pinLock.salt);
+        try{ await decrypt(key,pinLock.check); }catch(_){ return showErr("PIN이 맞지 않아요"); }
+        cryptoKey=key;
+      }
+      closePin(); pinResolve&&pinResolve(cryptoKey);
+    }catch(err){ showErr("잠금을 저장하지 못했어요. 다시 시도해 주세요"); }
+  });
+  $("pinCancel").addEventListener("click",()=>{ closePin(); pinReject&&pinReject(new Error("cancel")); });
+  $("pinReset").addEventListener("click",async e=>{
+    const b=e.currentTarget;
+    if(b.dataset.confirm!=="1"){ b.dataset.confirm="1"; b.textContent="한 번 더 누르면 초기화"; return; }
+    for(const it of items.filter(i=>i.pwEnc)){ await patch(it.id,{pwEnc:null}); }
+    await setLock(null); cryptoKey=null; pinLock=null;
+    b.dataset.confirm=""; b.textContent="PIN 초기화";
+    closePin(); pinReject&&pinReject(new Error("reset"));
+    toast("PIN과 저장된 비밀번호를 지웠어요. 새 PIN으로 다시 넣어 주세요");
+  });
+
+  /* ---------- 담당자 상세 ---------- */
+  let detailId=null;
+  function openDetail(it){
+    detailId=it.id;
+    $("dTitle").textContent=it.teacher||"담당자 정보";
+    $("dSub").textContent=it.org+" · "+it.product;
+    const setVal=(id,v,emptyText)=>{ const el=$(id); el.textContent=v||emptyText; el.classList.toggle("empty",!v); };
+    setVal("dPhone",it.phone,"안 적음");
+    const tel=(it.phone||"").replace(/[^\d+]/g,"");
+    $("dPhoneBtns").innerHTML = it.phone ? `<a class="btn sm" href="tel:${esc(tel)}">전화</a><a class="btn sm" href="sms:${esc(tel)}">문자</a>` : "";
+    setVal("dAccount",it.account,"안 적음");
+    setVal("dCard",cardLabel(it),"");
+    if(it.pwEnc){
+      $("dPw").textContent="••••••••"; $("dPw").classList.remove("empty");
+      $("dPwBtns").innerHTML='<button class="btn sm" type="button" id="dPwShow">보기</button>';
+    }else{
+      setVal("dPw","","안 적음"); $("dPwBtns").innerHTML="";
+    }
+    $("detailBack").hidden=false; $("dClose").focus();
+  }
+  function closeDetail(){ $("detailBack").hidden=true; detailId=null; }
+  $("dClose").addEventListener("click",closeDetail);
+  $("detailBack").addEventListener("click",async e=>{
+    if(e.target===$("detailBack")) return closeDetail();
+    const it=items.find(i=>i.id===detailId) || EXAMPLES.find(i=>i.id===detailId); if(!it) return;
+    if(e.target.id==="dPwShow"){
+      let key; try{ key=await ensureKey("비밀번호를 보려면 PIN을 넣어 주세요"); }catch(_){ return; }
+      try{
+        $("dPw").textContent=await decrypt(key,it.pwEnc);
+        $("dPwBtns").innerHTML='<button class="btn sm" type="button" data-copy="dPw">복사</button>';
+      }catch(_){ toast("이 비밀번호는 다른 PIN으로 잠겨 있어요. 수정에서 다시 넣어 주세요"); }
+    }
+    const copyId=e.target.dataset && e.target.dataset.copy;
+    if(copyId){
+      const text=$(copyId).textContent;
+      try{ await navigator.clipboard.writeText(text); toast("복사했어요"); }
+      catch(_){ const r=document.createRange(); r.selectNodeContents($(copyId)); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast("선택해 뒀어요. 길게 눌러 복사해 주세요"); }
+    }
+  });
+  document.addEventListener("keydown",e=>{
+    if(e.key!=="Escape") return;
+    if(!$("pinBack").hidden){ $("pinCancel").click(); }
+    else if(!$("detailBack").hidden){ closeDetail(); }
+    else if(!$("cardBack").hidden){ closeCardMgr(); }
+    else if(!$("impBack").hidden){ $("impBack").hidden=true; }
+  });
+
+  /* ---------- 카드 관리 ---------- */
+  let editingCardId=null;
+  function openCardMgr(){ renderCardMgr(); resetCardForm(); $("cardBack").hidden=false; $("ncName").focus(); }
+  function closeCardMgr(){ $("cardBack").hidden=true; }
+  function resetCardForm(){ editingCardId=null; $("cardAddForm").reset(); $("ncSubmit").textContent="카드 추가"; $("ncCancel").hidden=true; }
+  $("manageCards").addEventListener("click",openCardMgr);
+  $("cardClose").addEventListener("click",closeCardMgr);
+  $("ncCancel").addEventListener("click",resetCardForm);
+  $("cardBack").addEventListener("click",e=>{ if(e.target===$("cardBack")) closeCardMgr(); });
+  $("cardAddForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const data={name:$("ncName").value.trim(), last4:$("ncLast4").value.replace(/\D/g,"").slice(0,4), memo:$("ncMemo").value.trim()};
+    if(!data.name) return;
+    if(editingCardId) await saveCard(editingCardId,data);
+    else await saveCard(newId("c"),{...data,createdAt:new Date().toISOString()});
+    resetCardForm(); toast("카드를 저장했어요");
+  });
+  $("cardMgrList").addEventListener("click",async e=>{
+    const btn=e.target.closest("[data-cact]"); if(!btn) return;
+    const id=btn.closest("[data-card]").dataset.card;
+    const c=cards.find(x=>x.id===id); if(!c) return;
+    if(btn.dataset.cact==="edit"){
+      editingCardId=id; $("ncName").value=c.name; $("ncLast4").value=c.last4||""; $("ncMemo").value=c.memo||"";
+      $("ncSubmit").textContent="수정 저장"; $("ncCancel").hidden=false; $("ncName").focus();
+    }else{
+      const used=items.filter(it=>it.cardId===id).length;
+      if(btn.dataset.confirm!=="1"){
+        btn.dataset.confirm="1";
+        btn.textContent=used?`${used}건이 쓰는 중 · 정말 삭제`:"정말 삭제";
+        setTimeout(()=>{ if(btn.isConnected){ btn.dataset.confirm=""; btn.textContent="삭제"; } },3000);
+        return;
+      }
+      await removeCard(id); toast("카드를 지웠어요");
+    }
+  });
+
+  /* ---------- 엑셀 한번에 올리기 ---------- */
+  const FIELDS=[
+    {k:"org",  label:"학교·기관", req:true,  hints:["학교","기관","수요기관","거래처","고객"]},
+    {k:"teacher",label:"선생님",  req:false, hints:["선생","담당","성함","이름"]},
+    {k:"phone",label:"휴대폰",    req:false, hints:["휴대폰","핸드폰","전화","연락처"]},
+    {k:"product",label:"제품",    req:true,  hints:["제품","상품","품목","계약명","서비스"]},
+    {k:"account",label:"계정",    req:false, hints:["계정","아이디","이메일","메일","id"]},
+    {k:"pw",   label:"비밀번호",  req:false, hints:["비밀번호","비번","암호","password","pw"]},
+    {k:"card", label:"카드 별명", req:false, hints:["카드"]},
+    {k:"card4",label:"카드 4자리",req:false, hints:["4자리","끝번호","카드번호"]},
+    {k:"start",label:"결제한 날", req:true,  hints:["결제일","결제한","시작","구매일","개시","승인일"]},
+    {k:"months",label:"개월",     req:true,  hints:["개월","기간","월"]},
+    {k:"memo", label:"메모",      req:false, hints:["메모","비고","특이"]},
+  ];
+  let impRows=[], impHeaders=[], impWb=null;
+
+  function openImport(){
+    $("impErr").hidden=true; $("impStep2").hidden=true; $("impFile").value="";
+    $("impBack").hidden=false;
+  }
+  $("openImport").addEventListener("click",openImport);
+  $("impClose").addEventListener("click",()=>{ $("impBack").hidden=true; });
+  $("impBack2").addEventListener("click",()=>{ $("impStep2").hidden=true; $("impFile").value=""; });
+  $("impBack").addEventListener("click",e=>{ if(e.target===$("impBack")) $("impBack").hidden=true; });
+  function impError(msg){ $("impErr").textContent=msg; $("impErr").hidden=false; }
+
+  $("impFile").addEventListener("change",async e=>{
+    const file=e.target.files[0]; if(!file) return;
+    $("impErr").hidden=true;
+    try{
+      if(typeof XLSX==="undefined"){ impError("엑셀을 읽는 기능을 불러오지 못했어요. 새로고침한 뒤 다시 해 주세요."); return; }
+      const buf=await file.arrayBuffer();
+      let wb=XLSX.read(buf,{type:"array",cellDates:true});
+      if(/\.csv$/i.test(file.name)){
+        const probe=JSON.stringify(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1}).slice(0,3));
+        if(probe.includes(String.fromCharCode(65533))) wb=XLSX.read(buf,{type:"array",cellDates:true,codepage:949});
+      }
+      impWb=wb;
+      $("impFileInfo").textContent=file.name;
+      const names=wb.SheetNames;
+      $("impSheetWrap").hidden=names.length<2;
+      $("impSheet").innerHTML=names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+      loadSheet(names[0]);
+      $("impStep2").hidden=false;
+    }catch(err){ impError("파일을 읽지 못했어요. 엑셀(.xlsx)이나 CSV 파일인지 확인해 주세요."); }
+  });
+  $("impSheet").addEventListener("change",e=>loadSheet(e.target.value));
+
+  function loadSheet(name){
+    const ws=impWb.Sheets[name];
+    const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",blankrows:false});
+    const hi=raw.findIndex(r=>r.filter(c=>String(c).trim()!=="").length>=2);
+    if(hi<0){ impError("표를 찾지 못했어요. 첫 줄에 칸 이름이 있는 시트를 골라 주세요."); $("impStep2").hidden=true; return; }
+    impHeaders=raw[hi].map((c,i)=>String(c).trim()||"칸 "+(i+1));
+    impRows=raw.slice(hi+1).filter(r=>r.some(c=>String(c).trim()!==""));
+    buildMapping();
+  }
+  function guessCol(f){
+    const norm=s=>String(s).toLowerCase().replace(/[\s()·]/g,"");
+    for(let i=0;i<impHeaders.length;i++){
+      const h=norm(impHeaders[i]);
+      if(f.hints.some(x=>h.includes(norm(x)))) return i;
+    }
+    return -1;
+  }
+  function buildMapping(){
+    $("impMap").innerHTML=FIELDS.map(f=>{
+      const g=guessCol(f);
+      const opts=[`<option value="-1">— 없음 —</option>`].concat(impHeaders.map((h,i)=>`<option value="${i}"${i===g?" selected":""}>${esc(h)}</option>`)).join("");
+      return `<label for="map_${f.k}">${esc(f.label)}${f.req?' <span class="req">*</span>':""}</label><select id="map_${f.k}" data-field="${f.k}">${opts}</select>`;
+    }).join("");
+    $("impMap").querySelectorAll("select").forEach(s=>s.addEventListener("change",previewImport));
+    previewImport();
+  }
+  const mapIdx=k=>Number(($("map_"+k)||{value:-1}).value);
+  function cellOf(row,k){ const i=mapIdx(k); return i<0?"":row[i]; }
+
+  function parseLooseDate(v){
+    if(v instanceof Date && !isNaN(v)) return iso(new Date(v.getFullYear(),v.getMonth(),v.getDate()));
+    if(typeof v==="number" && v>20000 && v<80000){
+      const d=XLSX.SSF.parse_date_code(v); if(d) return iso(new Date(d.y,d.m-1,d.d));
+    }
+    const s=String(v||"").trim(); if(!s) return "";
+    const m=s.match(/(\d{2,4})\s*[.\-\/년]\s*(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})/);
+    if(!m) return "";
+    let y=Number(m[1]); if(y<100) y+=2000;
+    const d=new Date(y,Number(m[2])-1,Number(m[3]));
+    return isNaN(d)?"":iso(d);
+  }
+  function parseMonths(v){
+    const s=String(v??"").trim(); if(!s) return 0;
+    const y=s.match(/(\d+)\s*년/); if(y) return Number(y[1])*12;
+    const n=s.match(/(\d+)/); return n?Number(n[1]):0;
+  }
+  function rowToItem(row){
+    const org=String(cellOf(row,"org")||"").trim();
+    const product=String(cellOf(row,"product")||"").trim();
+    const start=parseLooseDate(cellOf(row,"start"));
+    const months=parseMonths(cellOf(row,"months"));
+    const why=[]; if(!org) why.push("학교"); if(!product) why.push("제품"); if(!start) why.push("결제일"); if(!months) why.push("개월");
+    return {
+      ok:why.length===0, why,
+      data:{
+        org, product, start, months,
+        teacher:String(cellOf(row,"teacher")||"").trim(),
+        phone:String(cellOf(row,"phone")||"").trim(),
+        account:String(cellOf(row,"account")||"").trim(),
+        memo:String(cellOf(row,"memo")||"").trim(),
+        lead:Math.max(0,Number($("impLead").value)||0)
+      },
+      cardName:String(cellOf(row,"card")||"").trim(),
+      cardLast4:String(cellOf(row,"card4")||"").replace(/\D/g,"").slice(0,4),
+      pw:String(cellOf(row,"pw")||"").trim()
+    };
+  }
+  function isDup(d){ return items.some(it=>it.org===d.org && it.product===d.product && it.start===d.start); }
+  function previewImport(){
+    const parsed=impRows.map(rowToItem);
+    const good=parsed.filter(p=>p.ok && !isDup(p.data));
+    const dup=parsed.filter(p=>p.ok && isDup(p.data)).length;
+    const bad=parsed.filter(p=>!p.ok);
+    const rows=good.slice(0,5).map(p=>{
+      const c=calcOf({...p.data,lead:p.data.lead});
+      return `<tr><td>${esc(p.data.org)}</td><td>${esc(p.data.product)}</td><td class="num">${esc(p.data.start)}</td><td class="num">${p.data.months}개월</td><td class="num">${c?fmt(c.alert):"-"}</td><td>${esc(p.cardName||($("impCard").selectedOptions[0]?.textContent||"-"))}</td></tr>`;
+    }).join("");
+    $("impPreview").innerHTML = rows
+      ? `<table><thead><tr><th>학교·기관</th><th>제품</th><th>결제한 날</th><th>기간</th><th>카드 빼는 날</th><th>카드</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<p class="note" style="padding:10px">등록할 수 있는 줄이 없어요. 위에서 칸을 맞춰 주세요.</p>';
+    const badWhy=bad.length?` · ${bad.length}줄은 ${[...new Set(bad.flatMap(b=>b.why))].join("·")}이(가) 비어 건너뜀`:"";
+    $("impSummary").textContent=`${impRows.length}줄 중 ${good.length}건 등록${dup?` · ${dup}건은 이미 있어 건너뜀`:""}${badWhy}`;
+    $("impRun").disabled=!good.length;
+    $("impRun").textContent=good.length?`${good.length}건 등록하기`:"등록할 줄 없음";
+  }
+  $("impLead").addEventListener("input",previewImport);
+  $("impCard").addEventListener("change",previewImport);
+
+  $("impRun").addEventListener("click",async ()=>{
+    const btn=$("impRun"); btn.disabled=true;
+    const parsed=impRows.map(rowToItem).filter(p=>p.ok && !isDup(p.data));
+    let key=null;
+    if(parsed.some(p=>p.pw)){
+      try{ key=await ensureKey("엑셀의 비밀번호를 잠글 PIN을 넣어 주세요"); }
+      catch(_){ toast("PIN 없이는 비밀번호를 뺀 채로 올려요"); }
+    }
+    const now=new Date().toISOString();
+    let done=0;
+    for(const p of parsed){
+      let cardId=$("impCard").value||null, cardNm="", card4="";
+      if(p.cardName||p.cardLast4){
+        let c=cards.find(x=>x.name===p.cardName && (!p.cardLast4 || !x.last4 || x.last4===p.cardLast4))
+             || (p.cardLast4?cards.find(x=>x.last4===p.cardLast4):null);
+        if(!c){
+          const id=newId("c");
+          await saveCard(id,{name:p.cardName||("카드 "+p.cardLast4),last4:p.cardLast4,memo:"엑셀에서 등록",createdAt:now});
+          c={id,name:p.cardName||("카드 "+p.cardLast4),last4:p.cardLast4};
+        }
+        cardId=c.id; cardNm=c.name; card4=c.last4||"";
+      }else{
+        const c=cards.find(x=>x.id===cardId);
+        cardNm=c?c.name:""; card4=c?c.last4||"":"";
+      }
+      const body={...p.data,cardId,card:cardNm,card4,done:false,calAdded:false,createdAt:now};
+      if(key && p.pw) body.pwEnc=await encrypt(key,p.pw);
+      await save(newId("s"),body);
+      done++; btn.textContent=`올리는 중 ${done}/${parsed.length}`;
+    }
+    $("impBack").hidden=true;
+    toast(`${done}건을 올렸어요. 카드 빼는 날 순서로 정리했어요`);
+    previewImport();
+  });
+
+  $("tplBtn").addEventListener("click",async ()=>{
+    if(typeof XLSX==="undefined"){ toast("잠시 뒤 다시 눌러 주세요"); return; }
+    const head=["학교·기관","담당 선생님","휴대폰","제품","계정","비밀번호","카드 별명","카드 끝4자리","결제한 날","개월","메모"];
+    const sample=["한빛초등학교","박OO 선생님","010-0000-0000","어도비","art@hanbit.es.kr","","신한 체크","1234",iso(today()),3,""];
+    const ws=XLSX.utils.aoa_to_sheet([head,sample]);
+    ws["!cols"]=head.map(h=>({wch:Math.max(12,h.length*2)}));
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"판매건");
+    const buf=XLSX.write(wb,{type:"array",bookType:"xlsx"});
+    const dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null;
+    if(!dl){ toast("이 화면에서는 양식을 내려받을 수 없어요. 칸 이름을 그대로 엑셀에 적어 주세요"); return; }
+    try{ await dl.save({filename:"카드빼는날_양식.xlsx",data:buf}); }
+    catch(err){ if(err&&err.code!=="declined") toast("양식을 내려받지 못했어요"); }
+  });
+
+  function newId(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+  /* ---------- storage ---------- */
+  async function save(id,data){
+    const i=items.findIndex(x=>x.id===id); const row={id,...data};
+    if(i<0) items.push(row); else items[i]=row;
+    persistLocal(); render();
+  }
+  async function patch(id,data){
+    const it=items.find(x=>x.id===id); if(!it) return;
+    Object.assign(it,data); persistLocal(); render();
+  }
+  async function remove(id){
+    items=items.filter(x=>x.id!==id); persistLocal(); render();
+  }
+  async function saveCard(id,data){
+    const i=cards.findIndex(x=>x.id===id); const row={id,...data};
+    if(i<0) cards.push(row); else cards[i]={...cards[i],...row};
+    persistLocal(); afterCards();
+  }
+  async function removeCard(id){
+    cards=cards.filter(x=>x.id!==id); persistLocal(); afterCards();
+  }
+  function afterCards(){
+    renderCardOptions($("cardSel").value, editingId?items.find(i=>i.id===editingId):null);
+    if(!$("cardBack").hidden) renderCardMgr();
+    render();
+  }
+  function persistLocal(){
+    try{ localStorage.setItem("cardOffDay.items",JSON.stringify(items)); localStorage.setItem("cardOffDay.cards",JSON.stringify(cards)); }
+    catch(_){ toast("이 브라우저에 저장하지 못했어요. 「엑셀로 내보내기」로 백업해 주세요"); }
+    scheduleBackup();
+  }
+  function loadLocal(){
+    try{ items=JSON.parse(localStorage.getItem("cardOffDay.items")||"[]"); }catch(_){ items=[]; }
+    try{ cards=JSON.parse(localStorage.getItem("cardOffDay.cards")||"[]"); }catch(_){ cards=[]; }
+  }
+  function setSync(state,text){ const s=$("sync"); s.className="sync "+state; s.lastElementChild.textContent=text; }
+
+  let toastTimer;
+  function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true,3200); }
+
+  /* ---------- 자동 백업 ---------- */
+  let dirHandle=null, backupTimer=null;
+  function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("cardOffDay",1); r.onupgradeneeded=()=>r.result.createObjectStore("kv"); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+  async function idbGet(k){ try{ const d=await idb(); return await new Promise((res,rej)=>{ const q=d.transaction("kv").objectStore("kv").get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }catch(_){ return null; } }
+  async function idbSet(k,v){ try{ const d=await idb(); await new Promise((res,rej)=>{ const q=d.transaction("kv","readwrite").objectStore("kv").put(v,k); q.onsuccess=res; q.onerror=()=>rej(q.error); }); }catch(_){} }
+
+  function backupText(){
+    let lock=null; try{ lock=JSON.parse(localStorage.getItem("cardOffDay.lock")||"null"); }catch(_){}
+    return JSON.stringify({app:"카드 빼는 날",version:VERSION,savedAt:new Date().toISOString(),items,cards,lock},null,2);
+  }
+  function hhmm(d){ return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+  async function initBackup(){
+    $("verLabel").textContent=VERSION;
+    if(!window.showDirectoryPicker){
+      $("btnBackupDir").hidden=true;
+      setSync("bad","이 브라우저는 자동 백업을 못 해요 · 「엑셀로 내보내기」로 챙겨 주세요");
+      return;
+    }
+    dirHandle=await idbGet("backupDir");
+    if(!dirHandle){ setSync("bad","자동 백업 꺼짐 · 폴더를 정해 주세요"); return; }
+    let p="prompt"; try{ p=await dirHandle.queryPermission({mode:"readwrite"}); }catch(_){}
+    if(p==="granted"){ setSync("ok","자동 백업 켜짐 · "+dirHandle.name); scheduleBackup(300); }
+    else setSync("bad","백업 폴더를 다시 허용해 주세요 — 「자동 백업 폴더 정하기」");
+  }
+  $("btnBackupDir").addEventListener("click",async()=>{
+    try{
+      if(dirHandle){
+        const p=await dirHandle.queryPermission({mode:"readwrite"});
+        if(p!=="granted" && await dirHandle.requestPermission({mode:"readwrite"})==="granted"){
+          setSync("ok","자동 백업 켜짐 · "+dirHandle.name); scheduleBackup(0); return;
+        }
+      }
+      const h=await window.showDirectoryPicker({mode:"readwrite",id:"cardOffDayBackup"});
+      dirHandle=h; await idbSet("backupDir",h);
+      setSync("ok","자동 백업 켜짐 · "+h.name); scheduleBackup(0);
+      toast("이제 내용이 바뀔 때마다 이 폴더에 백업돼요");
+    }catch(err){ if(err && err.name!=="AbortError") toast("폴더를 정하지 못했어요"); }
+  });
+  function scheduleBackup(delay){
+    if(!dirHandle) return;
+    clearTimeout(backupTimer); backupTimer=setTimeout(runBackup, delay===undefined?1500:delay);
+  }
+  async function runBackup(){
+    if(!dirHandle) return;
+    try{
+      if(await dirHandle.queryPermission({mode:"readwrite"})!=="granted"){
+        setSync("bad","백업이 멈췄어요 — 「자동 백업 폴더 정하기」를 다시 눌러 주세요"); return;
+      }
+      const text=backupText();
+      for(const name of ["카드빼는날_백업_최신.json","카드빼는날_백업_"+iso(today())+".json"]){
+        const fh=await dirHandle.getFileHandle(name,{create:true});
+        const w=await fh.createWritable(); await w.write(text); await w.close();
+      }
+      setSync("ok","백업됨 "+hhmm(new Date())+" · "+dirHandle.name);
+    }catch(_){ setSync("bad","백업하지 못했어요 · 폴더를 다시 정해 주세요"); }
+  }
+
+  $("btnExport").addEventListener("click",()=>{
+    if(typeof XLSX==="undefined"){ toast("잠시 뒤 다시 눌러 주세요"); return; }
+    const head=["학교·기관","담당 선생님","휴대폰","제품","계정","카드 별명","카드 끝4자리","결제한 날","개월","알림(며칠 전)","다음 자동결제일","카드 빼는 날","상태","메모"];
+    const rows=items.map(it=>{ const c=calcOf(it);
+      return [it.org,it.teacher||"",it.phone||"",it.product,it.account||"",cardName(it),cardLast4(it),it.start,Number(it.months)||"",Number(it.lead)||0,c?iso(c.renew):"",c?iso(c.alert):"",it.done?"정리 완료":"진행 중",it.memo||""];
+    });
+    const ws=XLSX.utils.aoa_to_sheet([head,...rows]);
+    ws["!cols"]=head.map(h=>({wch:Math.max(12,h.length*2)}));
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"카드빼는날");
+    XLSX.writeFile(wb,"카드빼는날_"+iso(today())+".xlsx");
+    toast("엑셀로 내려받았어요 (비밀번호는 빼고 저장돼요)");
+  });
+
+  $("btnRestore").addEventListener("click",()=>$("restoreFile").click());
+  $("restoreFile").addEventListener("change",async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    try{
+      const data=JSON.parse(await f.text());
+      if(!Array.isArray(data.items)) throw new Error("bad");
+      const before=items.length;
+      const byId={}; [...items,...data.items].forEach(x=>{ if(x&&x.id) byId[x.id]=x; });
+      items=Object.values(byId);
+      const cById={}; [...cards,...(data.cards||[])].forEach(x=>{ if(x&&x.id) cById[x.id]=x; });
+      cards=Object.values(cById);
+      if(data.lock && !localStorage.getItem("cardOffDay.lock")){ try{ localStorage.setItem("cardOffDay.lock",JSON.stringify(data.lock)); }catch(_){} }
+      persistLocal(); afterCards();
+      toast(`백업에서 ${items.length-before}건을 되살렸어요`);
+    }catch(_){ toast("백업 파일을 읽지 못했어요 · 카드빼는날_백업_최신.json 을 골라 주세요"); }
+    e.target.value="";
+  });
+
+  loadLocal();
+  resetForm();
+  afterCards();
+  initBackup();
+
+  // 자정 넘기면 D-day 갱신
+  setInterval(()=>{ const l="오늘 "+fmt(today()); if($("todayLabel").textContent!==l) render(); },60000);
+})();
+</script>
+
+</body>
+</html>
