@@ -419,7 +419,7 @@ details.donebox .group{margin-top:8px}
 (function(){
   const $ = id => document.getElementById(id);
   const DAY = 86400000;
-  const VERSION = "2026.09.19d";
+  const VERSION = "2026.09.19e";
   let items = [];          // {id, ...data}
   let cards = [];          // {id, name, last4, memo}
   let editingId = null;
@@ -1168,7 +1168,21 @@ details.donebox .group{margin-top:8px}
     e.target.value="";
   });
 
+  // 예전에 엑셀이 지워 버린 앞자리 0 을 한 번 되살린다 (1094539635 → 01094539635, 35 → 0035)
+  function repairLegacy(){
+    let changed=false;
+    items.forEach(it=>{
+      const p=fixPhone(it.phone); if(it.phone && p!==it.phone){ it.phone=p; changed=true; }
+      const l=fixLast4(it.card4); if(it.card4 && l!==it.card4){ it.card4=l; changed=true; }
+    });
+    cards.forEach(c=>{
+      const l=fixLast4(c.last4); if(c.last4 && l!==c.last4){ c.last4=l; changed=true; }
+    });
+    if(changed) persistLocal();
+  }
+
   loadLocal();
+  repairLegacy();
   resetForm();
   afterCards();
   initBackup();
