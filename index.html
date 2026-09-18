@@ -419,7 +419,7 @@ details.donebox .group{margin-top:8px}
 (function(){
   const $ = id => document.getElementById(id);
   const DAY = 86400000;
-  const VERSION = "2026.09.19b";
+  const VERSION = "2026.09.19c";
   let items = [];          // {id, ...data}
   let cards = [];          // {id, name, last4, memo}
   let editingId = null;
@@ -998,11 +998,8 @@ details.donebox .group{margin-top:8px}
     const ws=XLSX.utils.aoa_to_sheet([head,sample]);
     ws["!cols"]=head.map(h=>({wch:Math.max(12,h.length*2)}));
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"판매건");
-    const buf=XLSX.write(wb,{type:"array",bookType:"xlsx"});
-    const dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null;
-    if(!dl){ toast("이 화면에서는 양식을 내려받을 수 없어요. 칸 이름을 그대로 엑셀에 적어 주세요"); return; }
-    try{ await dl.save({filename:"카드빼는날_양식.xlsx",data:buf}); }
-    catch(err){ if(err&&err.code!=="declined") toast("양식을 내려받지 못했어요"); }
+    XLSX.writeFile(wb,"카드빼는날_양식.xlsx");
+    toast("양식을 내려받았어요. 칸 이름은 그대로 두고 아래에 채워 주세요");
   });
 
   function newId(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
