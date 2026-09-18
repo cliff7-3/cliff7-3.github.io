@@ -201,6 +201,7 @@ details.donebox .group{margin-top:8px}
     <button class="btn sm" type="button" id="btnBackupDir">자동 백업 폴더 정하기</button>
     <button class="btn sm" type="button" id="btnExport">엑셀로 내보내기</button>
     <button class="btn sm" type="button" id="btnRestore">백업에서 되살리기</button>
+    <button class="btn sm" type="button" id="btnLock" hidden>비밀번호 잠그기</button>
     <input id="restoreFile" type="file" accept=".json,.xlsx" style="position:absolute;width:1px;height:1px;opacity:0">
   </section>
 
@@ -341,6 +342,9 @@ details.donebox .group{margin-top:8px}
     </div>
     <div class="pinrow"><input id="pinInput" type="password" inputmode="numeric" autocomplete="off" minlength="4" required placeholder="••••"></div>
     <div class="pinrow" id="pin2Row" hidden><input id="pin2Input" type="password" inputmode="numeric" autocomplete="off" placeholder="한 번 더"></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)">
+      <input type="checkbox" id="pinRemember" checked> 이 PC에서는 다시 묻지 않기
+    </label>
     <p class="err" id="pinErr" hidden></p>
     <div class="actions">
       <button class="btn primary" type="submit">확인</button>
@@ -419,7 +423,7 @@ details.donebox .group{margin-top:8px}
 (function(){
   const $ = id => document.getElementById(id);
   const DAY = 86400000;
-  const VERSION = "2026.09.19f";
+  const VERSION = "2026.09.19g";
   let items = [];          // {id, ...data}
   let cards = [];          // {id, name, last4, memo}
   let editingId = null;
@@ -723,15 +727,22 @@ details.donebox .group{margin-top:8px}
         try{ await decrypt(key,pinLock.check); }catch(_){ return showErr("PIN이 맞지 않아요"); }
         cryptoKey=key;
       }
+      if($("pinRemember").checked) await idbSet("pwKey",cryptoKey); else await idbDel("pwKey");
+      updateLockUi();
       closePin(); pinResolve&&pinResolve(cryptoKey);
     }catch(err){ showErr("잠금을 저장하지 못했어요. 다시 시도해 주세요"); }
+  });
+  function updateLockUi(){ $("btnLock").hidden=!cryptoKey; }
+  $("btnLock").addEventListener("click",async()=>{
+    cryptoKey=null; await idbDel("pwKey"); updateLockUi();
+    toast("잠갔어요. 비밀번호를 볼 때 PIN을 다시 물어요");
   });
   $("pinCancel").addEventListener("click",()=>{ closePin(); pinReject&&pinReject(new Error("cancel")); });
   $("pinReset").addEventListener("click",async e=>{
     const b=e.currentTarget;
     if(b.dataset.confirm!=="1"){ b.dataset.confirm="1"; b.textContent="한 번 더 누르면 초기화"; return; }
     for(const it of items.filter(i=>i.pwEnc)){ await patch(it.id,{pwEnc:null}); }
-    await setLock(null); cryptoKey=null; pinLock=null;
+    await setLock(null); cryptoKey=null; pinLock=null; await idbDel("pwKey"); updateLockUi();
     b.dataset.confirm=""; b.textContent="PIN 초기화";
     closePin(); pinReject&&pinReject(new Error("reset"));
     toast("PIN과 저장된 비밀번호를 지웠어요. 새 PIN으로 다시 넣어 주세요");
@@ -1067,6 +1078,7 @@ details.donebox .group{margin-top:8px}
   let dirHandle=null, backupTimer=null;
   function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("cardOffDay",1); r.onupgradeneeded=()=>r.result.createObjectStore("kv"); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
   async function idbGet(k){ try{ const d=await idb(); return await new Promise((res,rej)=>{ const q=d.transaction("kv").objectStore("kv").get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }catch(_){ return null; } }
+  async function idbDel(k){ try{ const d=await idb(); await new Promise((res,rej)=>{ const q=d.transaction("kv","readwrite").objectStore("kv").delete(k); q.onsuccess=res; q.onerror=()=>rej(q.error); }); }catch(_){} }
   async function idbSet(k,v){ try{ const d=await idb(); await new Promise((res,rej)=>{ const q=d.transaction("kv","readwrite").objectStore("kv").put(v,k); q.onsuccess=res; q.onerror=()=>rej(q.error); }); }catch(_){} }
 
   function backupText(){
@@ -1076,6 +1088,8 @@ details.donebox .group{margin-top:8px}
   function hhmm(d){ return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
   async function initBackup(){
     $("verLabel").textContent=VERSION;
+    const saved=await idbGet("pwKey");     // 이 PC에서 기억해 둔 잠금 열쇠
+    if(saved){ cryptoKey=saved; updateLockUi(); }
     if(!window.showDirectoryPicker){
       $("btnBackupDir").hidden=true;
       setSync("bad","이 브라우저는 자동 백업을 못 해요 · 「엑셀로 내보내기」로 챙겨 주세요");
