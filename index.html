@@ -419,7 +419,7 @@ details.donebox .group{margin-top:8px}
 (function(){
   const $ = id => document.getElementById(id);
   const DAY = 86400000;
-  const VERSION = "2026.09.19";
+  const VERSION = "2026.09.19b";
   let items = [];          // {id, ...data}
   let cards = [];          // {id, name, last4, memo}
   let editingId = null;
@@ -1100,20 +1100,32 @@ details.donebox .group{margin-top:8px}
         const fh=await dirHandle.getFileHandle(name,{create:true});
         const w=await fh.createWritable(); await w.write(text); await w.close();
       }
-      setSync("ok","백업됨 "+hhmm(new Date())+" · "+dirHandle.name);
+      let xlsxNote="";
+      if(typeof XLSX!=="undefined"){
+        try{
+          const buf=XLSX.write(sheetBook(),{type:"array",bookType:"xlsx"});
+          const fh=await dirHandle.getFileHandle("카드빼는날_목록.xlsx",{create:true});
+          const w=await fh.createWritable(); await w.write(buf); await w.close();
+        }catch(_){ xlsxNote=" · 엑셀은 못 고침(파일이 열려 있나요?)"; }
+      }
+      setSync("ok","백업됨 "+hhmm(new Date())+" · "+dirHandle.name+xlsxNote);
     }catch(_){ setSync("bad","백업하지 못했어요 · 폴더를 다시 정해 주세요"); }
   }
 
-  $("btnExport").addEventListener("click",()=>{
-    if(typeof XLSX==="undefined"){ toast("잠시 뒤 다시 눌러 주세요"); return; }
-    const head=["학교·기관","담당 선생님","휴대폰","제품","계정","카드 별명","카드 끝4자리","결제한 날","개월","알림(며칠 전)","다음 자동결제일","카드 빼는 날","상태","메모"];
+  const SHEET_HEAD=["학교·기관","담당 선생님","휴대폰","제품","계정","카드 별명","카드 끝4자리","결제한 날","개월","알림(며칠 전)","다음 자동결제일","카드 빼는 날","상태","메모"];
+  function sheetBook(){
     const rows=items.map(it=>{ const c=calcOf(it);
       return [it.org,it.teacher||"",it.phone||"",it.product,it.account||"",cardName(it),cardLast4(it),it.start,Number(it.months)||"",Number(it.lead)||0,c?iso(c.renew):"",c?iso(c.alert):"",it.done?"정리 완료":"진행 중",it.memo||""];
-    });
-    const ws=XLSX.utils.aoa_to_sheet([head,...rows]);
-    ws["!cols"]=head.map(h=>({wch:Math.max(12,h.length*2)}));
+    }).sort((a,b)=>String(a[11]).localeCompare(String(b[11])));
+    const ws=XLSX.utils.aoa_to_sheet([SHEET_HEAD,...rows]);
+    ws["!cols"]=SHEET_HEAD.map(h=>({wch:Math.max(12,h.length*2)}));
+    ws["!freeze"]={xSplit:0,ySplit:1};
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"카드빼는날");
-    XLSX.writeFile(wb,"카드빼는날_"+iso(today())+".xlsx");
+    return wb;
+  }
+  $("btnExport").addEventListener("click",()=>{
+    if(typeof XLSX==="undefined"){ toast("잠시 뒤 다시 눌러 주세요"); return; }
+    XLSX.writeFile(sheetBook(),"카드빼는날_"+iso(today())+".xlsx");
     toast("엑셀로 내려받았어요 (비밀번호는 빼고 저장돼요)");
   });
 
