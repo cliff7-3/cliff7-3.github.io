@@ -397,7 +397,7 @@ details.donebox .group{margin-top:8px}
           <select id="impCard"></select>
         </div>
         <div class="field">
-          <label for="impLead">며칠 전에 알림</label>
+          <label for="impLead">알림 칸이 비었을 때 쓸 일수</label>
           <input id="impLead" type="number" min="0" max="30" value="3" class="num" style="background:var(--ground);border:1px solid var(--line);border-radius:6px;padding:8px 10px">
         </div>
       </div>
@@ -419,7 +419,7 @@ details.donebox .group{margin-top:8px}
 (function(){
   const $ = id => document.getElementById(id);
   const DAY = 86400000;
-  const VERSION = "2026.09.19e";
+  const VERSION = "2026.09.19f";
   let items = [];          // {id, ...data}
   let cards = [];          // {id, name, last4, memo}
   let editingId = null;
@@ -832,6 +832,7 @@ details.donebox .group{margin-top:8px}
     {k:"card4",label:"카드 4자리",req:false, hints:["4자리","끝번호","카드번호"]},
     {k:"start",label:"결제한 날", req:true,  hints:["결제일","결제한","시작","구매일","개시","승인일"]},
     {k:"months",label:"개월",     req:true,  hints:["개월","기간","월"]},
+    {k:"lead", label:"알림(며칠 전)",req:false,hints:["알림","며칠"]},
     {k:"memo", label:"메모",      req:false, hints:["메모","비고","특이"]},
   ];
   let impRows=[], impHeaders=[], impWb=null;
@@ -915,6 +916,12 @@ details.donebox .group{margin-top:8px}
     if(/^\d+$/.test(s) && (s.length===9 || s.length===10)) return "0"+s;
     return s;
   }
+  // 줄에 알림 일수가 적혀 있으면 그 값, 비어 있으면 창에 넣은 기본값을 쓴다
+  function rowLead(v){
+    const d=String(v??"").replace(/\D/g,"");
+    if(d==="") return Math.max(0,Number($("impLead").value)||0);
+    return Math.max(0,Math.min(365,Number(d)));
+  }
   function fixLast4(v){
     const d=String(v??"").replace(/\D/g,""); if(!d) return "";
     return (d.length<4 ? d.padStart(4,"0") : d.slice(-4));
@@ -938,7 +945,7 @@ details.donebox .group{margin-top:8px}
         phone:fixPhone(cellOf(row,"phone")),
         account:String(cellOf(row,"account")||"").trim(),
         memo:String(cellOf(row,"memo")||"").trim(),
-        lead:Math.max(0,Number($("impLead").value)||0)
+        lead:rowLead(cellOf(row,"lead"))
       },
       cardName:String(cellOf(row,"card")||"").trim(),
       cardLast4:fixLast4(cellOf(row,"card4")),
@@ -1003,8 +1010,8 @@ details.donebox .group{margin-top:8px}
 
   $("tplBtn").addEventListener("click",async ()=>{
     if(typeof XLSX==="undefined"){ toast("잠시 뒤 다시 눌러 주세요"); return; }
-    const head=["학교·기관","담당 선생님","휴대폰","제품","계정","비밀번호","카드 별명","카드 끝4자리","결제한 날","개월","메모"];
-    const sample=["한빛초등학교","박OO 선생님","010-0000-0000","어도비","art@hanbit.es.kr","","신한 체크","1234",iso(today()),3,""];
+    const head=["학교·기관","담당 선생님","휴대폰","제품","계정","비밀번호","카드 별명","카드 끝4자리","결제한 날","개월","알림(며칠 전)","메모"];
+    const sample=["한빛초등학교","박OO 선생님","010-0000-0000","어도비","art@hanbit.es.kr","","신한 체크","1234",iso(today()),3,3,""];
     const ws=XLSX.utils.aoa_to_sheet([head,sample]);
     ws["!cols"]=head.map(h=>({wch:Math.max(12,h.length*2)}));
     // 휴대폰(2)·카드 끝4자리(7)는 010, 0035 처럼 0 으로 시작해도 지워지지 않도록 '텍스트' 칸으로 만든다
