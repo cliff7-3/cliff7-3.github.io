@@ -864,10 +864,11 @@ details.donebox .group{margin-top:8px}
     try{
       if(typeof XLSX==="undefined"){ impError("엑셀을 읽는 기능을 불러오지 못했어요. 새로고침한 뒤 다시 해 주세요."); return; }
       const buf=await file.arrayBuffer();
-      let wb=XLSX.read(buf,{type:"array",cellDates:true});
+      // cellDates 는 쓰지 않는다 — SheetJS 가 한국 시간에서 날짜를 하루 전 23:59 로 만든다. 날짜 칸은 일련번호로 받아 parseLooseDate 가 푼다
+      let wb=XLSX.read(buf,{type:"array"});
       if(/\.csv$/i.test(file.name)){
         const probe=JSON.stringify(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1}).slice(0,3));
-        if(probe.includes(String.fromCharCode(65533))) wb=XLSX.read(buf,{type:"array",cellDates:true,codepage:949});
+        if(probe.includes(String.fromCharCode(65533))) wb=XLSX.read(buf,{type:"array",codepage:949});
       }
       impWb=wb;
       $("impFileInfo").textContent=file.name;
@@ -964,6 +965,18 @@ details.donebox .group{margin-top:8px}
     };
   }
   function isDup(d){ return items.some(it=>it.org===d.org && it.product===d.product && it.start===d.start); }
+  // 줄에 카드 별명이나 끝4자리가 있으면 그걸로 카드를 찾고(없으면 새 카드), 둘 다 비었을 때만 창에서 고른 카드를 쓴다
+  function impCardFor(p){
+    if(!p.cardName && !p.cardLast4){
+      const c=cards.find(x=>x.id===$("impCard").value)||null;
+      return {c, label:c?cardOptionLabel(c):"-"};
+    }
+    const c=cards.find(x=>x.name===p.cardName && (!p.cardLast4 || !x.last4 || x.last4===p.cardLast4))
+         || (p.cardLast4?cards.find(x=>x.last4===p.cardLast4):null);
+    if(c) return {c, label:cardOptionLabel(c)};
+    const name=p.cardName||"카드";
+    return {c:null, name, label:name+(p.cardLast4?" ·"+p.cardLast4:"")+" (새 카드로 등록)"};
+  }
   function previewImport(){
     const parsed=impRows.map(rowToItem);
     const good=parsed.filter(p=>p.ok && !isDup(p.data));
@@ -971,7 +984,7 @@ details.donebox .group{margin-top:8px}
     const bad=parsed.filter(p=>!p.ok);
     const rows=good.slice(0,5).map(p=>{
       const c=calcOf({...p.data,lead:p.data.lead});
-      return `<tr><td>${esc(p.data.org)}</td><td>${esc(p.data.product)}</td><td class="num">${esc(p.data.start)}</td><td class="num">${p.data.months}개월</td><td class="num">${c?fmt(c.alert):"-"}</td><td>${esc(p.cardName||($("impCard").selectedOptions[0]?.textContent||"-"))}</td></tr>`;
+      return `<tr><td>${esc(p.data.org)}</td><td>${esc(p.data.product)}</td><td class="num">${esc(p.data.start)}</td><td class="num">${p.data.months}개월</td><td class="num">${c?fmt(c.alert):"-"}</td><td>${esc(impCardFor(p).label)}</td></tr>`;
     }).join("");
     $("impPreview").innerHTML = rows
       ? `<table><thead><tr><th>학교·기관</th><th>제품</th><th>결제한 날</th><th>기간</th><th>카드 빼는 날</th><th>카드</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -995,20 +1008,13 @@ details.donebox .group{margin-top:8px}
     const now=new Date().toISOString();
     let done=0;
     for(const p of parsed){
-      let cardId=$("impCard").value||null, cardNm="", card4="";
-      if(p.cardName||p.cardLast4){
-        let c=cards.find(x=>x.name===p.cardName && (!p.cardLast4 || !x.last4 || x.last4===p.cardLast4))
-             || (p.cardLast4?cards.find(x=>x.last4===p.cardLast4):null);
-        if(!c){
-          const id=newId("c");
-          await saveCard(id,{name:p.cardName||("카드 "+p.cardLast4),last4:p.cardLast4,memo:"엑셀에서 등록",createdAt:now});
-          c={id,name:p.cardName||("카드 "+p.cardLast4),last4:p.cardLast4};
-        }
-        cardId=c.id; cardNm=c.name; card4=c.last4||"";
-      }else{
-        const c=cards.find(x=>x.id===cardId);
-        cardNm=c?c.name:""; card4=c?c.last4||"":"";
+      const pick=impCardFor(p); let c=pick.c;
+      if(!c && pick.name){
+        const id=newId("c");
+        await saveCard(id,{name:pick.name,last4:p.cardLast4,memo:"엑셀에서 등록",createdAt:now});
+        c={id,name:pick.name,last4:p.cardLast4};
       }
+      const cardId=c?c.id:null, cardNm=c?c.name:"", card4=c?c.last4||"":"";
       const body={...p.data,cardId,card:cardNm,card4,done:false,calAdded:false,createdAt:now};
       if(key && p.pw) body.pwEnc=await encrypt(key,p.pw);
       await save(newId("s"),body);
